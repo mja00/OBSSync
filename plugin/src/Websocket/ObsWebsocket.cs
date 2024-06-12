@@ -44,7 +44,7 @@ public class ObsWebsocket
 
             if (!result.EndOfMessage)
             {
-                OBSSync.Logger.LogError("Message was larger than 2048 bytes, bug the author about this.");
+                ObsSyncPlugin.Logger.LogError("Message was larger than 2048 bytes, bug the author about this.");
                 return;
             }
 
@@ -56,7 +56,7 @@ public class ObsWebsocket
             }
 
             string res = Encoding.UTF8.GetString(bytes, 0, result.Count);
-            OBSSync.Logger.LogDebug("Recv: " + res);
+            ObsSyncPlugin.Logger.LogDebug("Recv: " + res);
 
             var msg = JsonConvert.DeserializeObject<ObsMessage>(res);
             if (msg != null) HandleMessage(msg);
@@ -109,7 +109,7 @@ public class ObsWebsocket
                 HandleRequestResponse(msg.Data);
                 break;
             default:
-                OBSSync.Logger.LogWarning("Received unknown or unsupported opcode from OBS websocket: " + msg.Op);
+                ObsSyncPlugin.Logger.LogWarning("Received unknown or unsupported opcode from OBS websocket: " + msg.Op);
                 break;
         }
     }
@@ -161,13 +161,13 @@ public class ObsWebsocket
     {
         if (!ulong.TryParse(data["requestId"]!.Value<string>(), out ulong requestId))
         {
-            OBSSync.Logger.LogWarning("Received RequestResponse with non-integer request ID");
+            ObsSyncPlugin.Logger.LogWarning("Received RequestResponse with non-integer request ID");
             return;
         }
 
         if (!SentRequests.TryGetValue(requestId, out var thing))
         {
-            OBSSync.Logger.LogWarning("Received RequestResponse with unknown request ID");
+            ObsSyncPlugin.Logger.LogWarning("Received RequestResponse with unknown request ID");
             return;
         }
 
@@ -177,7 +177,7 @@ public class ObsWebsocket
         string responseType = data["requestType"]!.Value<string>()!;
         if (responseType != sentRequest.RequestType)
         {
-            OBSSync.Logger.LogError($"Mismatched response type for request ({sentRequest.RequestType} != {responseType})");
+            ObsSyncPlugin.Logger.LogError($"Mismatched response type for request ({sentRequest.RequestType} != {responseType})");
             return;
         }
 
@@ -215,7 +215,7 @@ public class ObsWebsocket
         string payload = JsonConvert.SerializeObject(msg);
         byte[] data = Encoding.UTF8.GetBytes(payload);
 
-        OBSSync.Logger.LogDebug("Send: " + payload);
+        ObsSyncPlugin.Logger.LogDebug("Send: " + payload);
         WebSocket.SendAsync(data, WebSocketMessageType.Text, true, default);
     }
 

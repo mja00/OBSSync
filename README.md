@@ -13,9 +13,9 @@ in-game events into a text file beside the recording.
 - [x] Enemy deaths
 - [x] Bracken getting mad
 - [x] Easter egg explosion
-- [~] Things that cause 'fear'
-- [ ] Jester begins winding (WIP)
-- [ ] Loot bug aggravation (WIP)
+- [x] Things that cause 'fear'
+- [x] Jester begins winding
+- [~] Loot bug aggravation (Works only on host?)
 - [ ] Coilhead aggravation (WIP)
 
 ## OBS Setup

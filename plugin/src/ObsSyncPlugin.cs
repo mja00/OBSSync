@@ -10,10 +10,10 @@ using UnityEngine.InputSystem;
 
 namespace OBSSync;
 
-[BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
-public class OBSSync : BaseUnityPlugin
+[BepInAutoPlugin]
+public partial class ObsSyncPlugin : BaseUnityPlugin
 {
-    public static OBSSync Instance { get; private set; } = null!;
+    public static ObsSyncPlugin Instance { get; private set; } = null!;
     internal new static ManualLogSource Logger { get; private set; } = null!;
     internal static Harmony? Harmony { get; set; }
 
@@ -33,13 +33,13 @@ public class OBSSync : BaseUnityPlugin
 
     private StreamWriter? _currentTimestampLog;
     private DateTime _currentLogStart;
-    
+
     private void Awake()
     {
         Logger = base.Logger;
         Instance = this;
-        Harmony = Harmony.CreateAndPatchAll(typeof(Patches), MyPluginInfo.PLUGIN_GUID);
-        
+        Harmony = Harmony.CreateAndPatchAll(typeof(Patches), Id);
+
         BuildConfig();
 
         InitializeObsClient();
@@ -52,7 +52,7 @@ public class OBSSync : BaseUnityPlugin
 
     private void Update()
     {
-        if (Keyboard.current.pageUpKey.wasPressedThisFrame)
+        if (Keyboard.current[_configManualEventKey.Value].wasPressedThisFrame)
             WriteTimestamppedEvent("Manual event");
     }
 
@@ -64,15 +64,16 @@ public class OBSSync : BaseUnityPlugin
         _obs.RecordStateChanged += data =>
         {
             if (data.OutputState != RecordStateChangedEventData.StateStarted) return;
-            
+
             string directory = Path.GetDirectoryName(data.OutputPath)!;
             string filename = Path.GetFileNameWithoutExtension(data.OutputPath)!;
             string timestampLogPath = Path.Combine(directory, filename + ".txt");
 
             _currentTimestampLog = new StreamWriter(timestampLogPath);
+            _currentTimestampLog.AutoFlush = true;
             _currentLogStart = DateTime.Now;
         };
-        
+
         DoConnect();
     }
 
@@ -87,7 +88,7 @@ public class OBSSync : BaseUnityPlugin
             Logger.LogError(e);
         }
     }
-    
+
     private void ObsConnected()
     {
         Logger.LogInfo("Connected to OBS websocket!");
@@ -128,11 +129,11 @@ public class OBSSync : BaseUnityPlugin
     {
         await _obs.MakeRequestAsync(new StartRecordRequest());
     }
-    
+
     public async void StopRecording(string filenameSuffix)
     {
         var stopResponse = await _obs.MakeRequestAsync(new StopRecordRequest());
-        
+
         // If the stop request was successful
         if (stopResponse.Status.Success)
         {
@@ -148,21 +149,22 @@ public class OBSSync : BaseUnityPlugin
             }
         }
     }
-    
+
     public async void SplitRecording(string filenameSuffix)
     {
         var stopResponse = await _obs.MakeRequestAsync(new StopRecordRequest());
-        
+
         // If the stop request was successful
         if (stopResponse.Status.Success)
         {
             // Wait for it to fully stop
             _obs.RecordStateChanged += WaitForRecordingStopped;
+
             async void WaitForRecordingStopped(RecordStateChangedEventData e)
             {
                 if (e.OutputState != RecordStateChangedEventData.StateStopped) return;
                 _obs.RecordStateChanged -= WaitForRecordingStopped;
-                
+
                 RenameLogFile(e.OutputPath!, filenameSuffix);
 
                 // Start the recording again
@@ -177,16 +179,16 @@ public class OBSSync : BaseUnityPlugin
             await _obs.MakeRequestAsync(new StartRecordRequest());
         }
     }
-    
+
     #region Callbacks
 
     internal void JoinedGame()
     {
         _lastPlayedLevel = null;
-        
+
         if (_configAutoStartStop.Value)
         {
-            StartRecording();   
+            StartRecording();
         }
     }
 
@@ -198,7 +200,7 @@ public class OBSSync : BaseUnityPlugin
             StopRecording(suffix);
         }
     }
-    
+
     internal void RoundStarting()
     {
         if (_configAutoSplit.Value)
@@ -207,7 +209,7 @@ public class OBSSync : BaseUnityPlugin
             SplitRecording(suffix);
             WriteTimestamppedEvent("");
         }
-        
+
         _lastPlayedLevel = StartOfRound.Instance.currentLevel;
         WriteTimestamppedEvent($"Landing on {LastPlanetName}");
     }
@@ -216,28 +218,26 @@ public class OBSSync : BaseUnityPlugin
     {
         WriteTimestamppedEvent("Left moon, now in orbit");
     }
-    
+
     internal void WriteTimestamppedEvent(string what)
     {
+        TimeSpan time = DateTime.Now - _currentLogStart;
+        string logEntry = $"[{time:hh':'mm':'ss}] {what}";
+        Logger.LogDebug(logEntry);
+
         if (_currentTimestampLog == null)
         {
             Logger.LogWarning("Trying to write stuff but no logfile is opened... start a recording!");
-            return;
         }
-
-        if (string.IsNullOrEmpty(what)) _currentTimestampLog.WriteLine();
         else
         {
-            TimeSpan time = DateTime.Now - _currentLogStart;
-
-            string logEntry = $"[{time:hh':'mm':'ss}] {what}";
-            _currentTimestampLog.WriteLine(logEntry);
-            Logger.LogDebug(logEntry);
+            if (string.IsNullOrEmpty(what)) _currentTimestampLog.WriteLine();
+            else _currentTimestampLog.WriteLine(logEntry);
         }
     }
-    
+
     #endregion
-    
+
     #region Config
 
     private ConfigEntry<string> _configObsWebsocketAddress = null!;
@@ -245,6 +245,7 @@ public class OBSSync : BaseUnityPlugin
 
     private ConfigEntry<bool> _configAutoStartStop = null!;
     private ConfigEntry<bool> _configAutoSplit = null!;
+    private ConfigEntry<Key> _configManualEventKey = null!;
 
     private void BuildConfig()
     {
@@ -253,6 +254,7 @@ public class OBSSync : BaseUnityPlugin
 
         _configAutoStartStop = Config.Bind("Recording", "AutoStartStop", true, "Automatically start recording when you start or join a game and automatically stop recording when you leave a game.");
         _configAutoSplit = Config.Bind("Recording", "AutoSplit", true, "Automatically stop and start a new recording between moons");
+        _configManualEventKey = Config.Bind("Recording", "ManualEventTimestamp", Key.PageUp, "The key that will add a manual event into the timestamp log");
     }
 
     #endregion

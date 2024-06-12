@@ -11,35 +11,42 @@ namespace OBSSync;
 
 internal static class Patches
 {
-    [HarmonyPatch(typeof(StartOfRound), nameof(StartOfRound.StartGame))]
     [HarmonyPatch(typeof(StartOfRound), nameof(StartOfRound.ResetPlayersLoadedValueClientRpc))]
-    [HarmonyPrefix]
-    public static void OnNewRoundStarted()
+    [HarmonyTranspiler]
+    public static IEnumerable<CodeInstruction> OnNewRoundStarted(IEnumerable<CodeInstruction> instructions)
     {
-        OBSSync.Instance.RoundStarting();
+        void ActualFunction()
+        {
+            ObsSyncPlugin.Instance.RoundStarting();
+        }
+
+        return new CodeMatcher(instructions)
+            .SkipRpcCrap()
+            .Insert(new CodeInstruction(OpCodes.Call, ((Delegate)ActualFunction).Method))
+            .InstructionEnumeration();
     }
-    
+
     [HarmonyPatch(typeof(StartOfRound), nameof(StartOfRound.EndOfGame))]
     [HarmonyPrefix]
     public static void StartOfRound_EndOfGame_Prefix()
     {
-        OBSSync.Instance.RoundFinished();
+        ObsSyncPlugin.Instance.RoundFinished();
     }
-    
+
     [HarmonyPatch(typeof(StartOfRound), nameof(StartOfRound.Start))]
     [HarmonyPrefix]
     public static void OnGameJoined()
     {
-        OBSSync.Instance.JoinedGame();
+        ObsSyncPlugin.Instance.JoinedGame();
     }
-    
+
     [HarmonyPatch(typeof(GameNetworkManager), nameof(GameNetworkManager.StartDisconnect))]
     [HarmonyPrefix]
     public static void OnGameLeave()
     {
-        OBSSync.Instance.LeftGame();
+        ObsSyncPlugin.Instance.LeftGame();
     }
-    
+
     [HarmonyPatch(typeof(PlayerControllerB), nameof(PlayerControllerB.KillPlayerClientRpc))]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> OnPlayerKilled(IEnumerable<CodeInstruction> instructions)
@@ -47,9 +54,9 @@ internal static class Patches
         void ActualFunction(int playerId, int causeOfDeath)
         {
             string playerName = StartOfRound.Instance.allPlayerScripts[playerId].playerUsername;
-            OBSSync.Instance.WriteTimestamppedEvent($"Player {playerName} died ({(CauseOfDeath) causeOfDeath})");
+            ObsSyncPlugin.Instance.WriteTimestamppedEvent($"Player {playerName} died ({(CauseOfDeath)causeOfDeath})");
         }
-        
+
         return new CodeMatcher(instructions)
             .SkipRpcCrap()
             .Insert(
@@ -63,9 +70,12 @@ internal static class Patches
     [HarmonyPostfix]
     public static void OnEnemyKilled(EnemyAI __instance)
     {
-        OBSSync.Instance.WriteTimestamppedEvent($"Enemy {__instance.gameObject.name} died");
+        // Don't care about these birds...
+        if (__instance.gameObject.name.Contains("Doublewinged")) return;
+
+        ObsSyncPlugin.Instance.WriteTimestamppedEvent($"Enemy {__instance.gameObject.name} died");
     }
-    
+
     [HarmonyPatch(typeof(FlowermanAI), nameof(FlowermanAI.EnterAngerModeClientRpc))]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> OnBrackenAngered(IEnumerable<CodeInstruction> instructions)
@@ -73,9 +83,9 @@ internal static class Patches
         void ActualFunction(FlowermanAI self)
         {
             if (self.lookAtPlayer != null)
-                OBSSync.Instance.WriteTimestamppedEvent($"Bracken angered towards {self.lookAtPlayer.playerUsername}");
+                ObsSyncPlugin.Instance.WriteTimestamppedEvent($"Bracken angered towards {self.lookAtPlayer.playerUsername}");
         }
-        
+
         return new CodeMatcher(instructions)
             .SkipRpcCrap()
             .Insert(
@@ -90,17 +100,13 @@ internal static class Patches
     {
         void ActualFunction(JesterAI self)
         {
-            OBSSync.Instance.WriteTimestamppedEvent("Jester started winding");
+            ObsSyncPlugin.Instance.WriteTimestamppedEvent("Jester started winding");
         }
 
         FieldInfo previousState = typeof(JesterAI).GetField("previousState", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
         return new CodeMatcher(instructions)
-            .MatchForward(true,
-                new CodeMatch(OpCodes.Ldarg_0),
-                new CodeMatch(OpCodes.Ldfld, previousState),
-                new CodeMatch(OpCodes.Ldc_I4_1),
-                new CodeMatch(OpCodes.Beq_S),
+            .MatchForward(false,
                 new CodeMatch(OpCodes.Ldarg_0),
                 new CodeMatch(OpCodes.Ldc_I4_1),
                 new CodeMatch(OpCodes.Stfld, previousState))
@@ -109,23 +115,20 @@ internal static class Patches
                 new CodeInstruction(OpCodes.Call, ((Delegate)ActualFunction).Method))
             .InstructionEnumeration();
     }
-    
+
     [HarmonyPatch(typeof(HoarderBugAI), nameof(HoarderBugAI.Update))]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> OnLootBugAngered(IEnumerable<CodeInstruction> instructions)
     {
         void ActualFunction(HoarderBugAI self)
         {
-            OBSSync.Instance.WriteTimestamppedEvent($"Loot bug angered by {self.targetPlayer.playerUsername}");
+            ObsSyncPlugin.Instance.WriteTimestamppedEvent($"Loot bug angered by {self.targetPlayer.playerUsername}");
         }
 
         FieldInfo inChase = typeof(HoarderBugAI).GetField("inChase", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
         return new CodeMatcher(instructions)
-            .MatchForward(true,
-                new CodeMatch(OpCodes.Ldarg_0),
-                new CodeMatch(OpCodes.Ldfld, inChase),
-                new CodeMatch(OpCodes.Brtrue),
+            .MatchForward(false,
                 new CodeMatch(OpCodes.Ldarg_0),
                 new CodeMatch(OpCodes.Ldc_I4_1),
                 new CodeMatch(OpCodes.Stfld, inChase))
@@ -143,8 +146,8 @@ internal static class Patches
         {
             // Easter eggs share code with stun grenades
             if (!self.name.Contains("Easter egg")) return;
-            
-            OBSSync.Instance.WriteTimestamppedEvent("Easter egg exploded");
+
+            ObsSyncPlugin.Instance.WriteTimestamppedEvent("Easter egg exploded");
         }
 
         FieldInfo hasExploded = typeof(StunGrenadeItem).GetField("hasExploded", BindingFlags.Instance | BindingFlags.Public)!;
@@ -159,16 +162,16 @@ internal static class Patches
                 new CodeInstruction(OpCodes.Call, ((Delegate)ActualFunction).Method))
             .InstructionEnumeration();
     }
-    
+
     [HarmonyPatch(typeof(PlayerControllerB), nameof(PlayerControllerB.DamagePlayerClientRpc))]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> OnPlayerDamaged(IEnumerable<CodeInstruction> instructions)
     {
         void ActualFunction(PlayerControllerB self)
         {
-            OBSSync.Instance.WriteTimestamppedEvent($"Player {self.playerUsername} took damage");
+            ObsSyncPlugin.Instance.WriteTimestamppedEvent($"Player {self.playerUsername} took damage");
         }
-        
+
         return new CodeMatcher(instructions)
             .SkipRpcCrap()
             .Insert(
@@ -186,23 +189,27 @@ internal static class Patches
             switch (StartOfRound.Instance.fearLevel)
             {
                 case > 0.9f:
-                    OBSSync.Instance.WriteTimestamppedEvent("Extreme fear event");
+                    ObsSyncPlugin.Instance.WriteTimestamppedEvent("Extreme fear event");
                     break;
                 case > 0.75f:
-                    OBSSync.Instance.WriteTimestamppedEvent("High fear event");
+                    ObsSyncPlugin.Instance.WriteTimestamppedEvent("High fear event");
                     break;
-                case >0.5f:
-                    OBSSync.Instance.WriteTimestamppedEvent("Moderate fear event");
+                case > 0.4f:
+                    ObsSyncPlugin.Instance.WriteTimestamppedEvent("Moderate fear event");
+                    break;
+                default:
+                    ObsSyncPlugin.Instance.WriteTimestamppedEvent("Low fear event");
                     break;
             }
         }
-        
+
         return new CodeMatcher(instructions)
+            .End()
             .MatchBack(false, new CodeMatch(OpCodes.Ret))
             .Insert(new CodeInstruction(OpCodes.Call, ((Delegate)ActualFunction).Method))
             .InstructionEnumeration();
     }
-    
+
     private static CodeMatcher SkipRpcCrap(this CodeMatcher matcher)
     {
         FieldInfo rpcExecStage = typeof(NetworkBehaviour).GetField("__rpc_exec_stage", BindingFlags.Instance | BindingFlags.NonPublic)!;
@@ -211,9 +218,9 @@ internal static class Patches
             matcher.MatchForward(true, new CodeMatch(OpCodes.Ldarg_0), new CodeMatch(OpCodes.Ldfld, rpcExecStage));
         matcher.MatchForward(true, new CodeMatch(OpCodes.Ret), new CodeMatch(OpCodes.Nop));
         matcher.Advance(1);
-        
+
         matcher.ThrowIfInvalid("Could not match for rpc stuff");
-        
+
         return matcher;
     }
 }
