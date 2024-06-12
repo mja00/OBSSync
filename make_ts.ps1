@@ -58,7 +58,7 @@ $ManifestContent = $ManifestContent.replace("{{AUTHOR}}", $PluginAuthor)
 Set-Content $ManifestPath $ManifestContent
 
 # Make a zip archive from the folder
-$OutputPath = Join-Path $OutputPath "${PluginName}.zip"
+$OutputPath = "${PluginName}-${PluginVersion}.zip"
 Compress-Archive -Path "${TempDir}\*" -DestinationPath $OutputPath -Force
 
 # Delete the temp folder and we're done!

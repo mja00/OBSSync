@@ -38,4 +38,6 @@ in-game events into a text file beside the recording.
   to stop recording when you leave a game.
 
 * **Recording AutoSplit**: When enabled, the mod will stop the current recording and start a new one in between moons to
-  automatically create individual recording files per moon.
+  automatically create individual recording files per moon.\
+
+* **Recording ManualEventKey**: The key that when pressed will add a manually triggered event into the timestamp log.

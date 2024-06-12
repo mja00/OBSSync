@@ -254,7 +254,7 @@ public partial class ObsSyncPlugin : BaseUnityPlugin
 
         _configAutoStartStop = Config.Bind("Recording", "AutoStartStop", true, "Automatically start recording when you start or join a game and automatically stop recording when you leave a game.");
         _configAutoSplit = Config.Bind("Recording", "AutoSplit", true, "Automatically stop and start a new recording between moons");
-        _configManualEventKey = Config.Bind("Recording", "ManualEventTimestamp", Key.PageUp, "The key that will add a manual event into the timestamp log");
+        _configManualEventKey = Config.Bind("Recording", "ManualEventKey", Key.PageUp, "The key that will add a manual event into the timestamp log");
     }
 
     #endregion
