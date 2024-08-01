@@ -7,9 +7,9 @@ in-game events into a text file beside the recording.
 Setup OBS and the plugin by following the guides below (you may need to run the game once first so the plugin config is
 generated). Once configured, OBSSync should automatically connect when you launch the game.
 
-OBSSync will automatically write down a timestampped log file with event that happen in game, however you can trigger
+OBSSync will automatically write down a timestampped log file with events that happen in game, however you can trigger
 some manual events by using either the manual event key (default PageUp) or by sending a chat message in the format
-`!mark <message>`
+`!mark <message>`.
 
 If you have any questions, suggestions, or bug reports, email me at [ngill@nortel.cloud](mailto:ngill@nortel.cloud).
 
