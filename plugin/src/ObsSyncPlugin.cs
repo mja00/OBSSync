@@ -5,6 +5,7 @@ using BepInEx.Logging;
 using HarmonyLib;
 using OBSSync.Websocket;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine.InputSystem;
 
@@ -150,27 +151,41 @@ public partial class ObsSyncPlugin : BaseUnityPlugin
         }
     }
 
-    public async void SplitRecording(string filenameSuffix)
+    public async Task SplitRecording(string filenameSuffix)
     {
         var stopResponse = await _obs.MakeRequestAsync(new StopRecordRequest());
 
         // If the stop request was successful
         if (stopResponse.Status.Success)
         {
-            // Wait for it to fully stop
+            SemaphoreSlim waitHandle = new SemaphoreSlim(0, 1);
             _obs.RecordStateChanged += WaitForRecordingStopped;
+
+            // Block until we get confirmation it's actually stopped
+            await waitHandle.WaitAsync();
 
             async void WaitForRecordingStopped(RecordStateChangedEventData e)
             {
-                if (e.OutputState != RecordStateChangedEventData.StateStopped) return;
-                _obs.RecordStateChanged -= WaitForRecordingStopped;
+                // We'll hit this first as it stops
+                if (e.OutputState == RecordStateChangedEventData.StateStopped)
+                {
+                    RenameLogFile(e.OutputPath!, filenameSuffix);
 
-                RenameLogFile(e.OutputPath!, filenameSuffix);
-
-                // Start the recording again
-                await Task.Delay(150);
-                await _obs.MakeRequestAsync(new StartRecordRequest());
+                    // Start the recording again
+                    await Task.Delay(150);
+                    await _obs.MakeRequestAsync(new StartRecordRequest());
+                }
+                
+                // Then we'll hit this as it starts again
+                else if (e.OutputState == RecordStateChangedEventData.StateStarted)
+                {
+                    _obs.RecordStateChanged -= WaitForRecordingStopped;
+                    waitHandle.Release();
+                }
             }
+
+            // Let other tasks complete first
+            await Task.Yield();
         }
         else
         {
@@ -201,12 +216,15 @@ public partial class ObsSyncPlugin : BaseUnityPlugin
         }
     }
 
-    internal void RoundStarting()
+    internal async void RoundStarting()
     {
         if (_configAutoSplit.Value)
         {
             string suffix = LastPlanetName ?? "start";
-            SplitRecording(suffix);
+            await SplitRecording(suffix);
+        }
+        else
+        {
             WriteTimestamppedEvent("");
         }
 

@@ -145,9 +145,10 @@ internal static class Patches
         void ActualFunction(StunGrenadeItem self)
         {
             // Easter eggs share code with stun grenades
-            if (!self.name.Contains("Easter egg")) return;
-
-            ObsSyncPlugin.Instance.WriteTimestamppedEvent("Easter egg exploded");
+            if (self.name.Contains("Easter egg"))
+                ObsSyncPlugin.Instance.WriteTimestamppedEvent("Easter egg exploded");
+            else
+                ObsSyncPlugin.Instance.WriteTimestamppedEvent("Stun grenade exploded");
         }
 
         FieldInfo hasExploded = typeof(StunGrenadeItem).GetField("hasExploded", BindingFlags.Instance | BindingFlags.Public)!;
@@ -210,6 +211,20 @@ internal static class Patches
             .InstructionEnumeration();
     }
 
+    [HarmonyPatch(typeof(HUDManager), nameof(HUDManager.AddTextToChatOnServer))]
+    [HarmonyPrefix]
+    public static bool OnChatMessage(string chatMessage, int playerId)
+    {
+        if (playerId != (int)GameNetworkManager.Instance.localPlayerController.playerClientId) return true;
+
+        if (!chatMessage.StartsWith("!mark ")) return true;
+
+        string message = chatMessage.Substring(6);
+        ObsSyncPlugin.Instance.WriteTimestamppedEvent("Manual Event: " + message);
+
+        return false;
+    }
+    
     private static CodeMatcher SkipRpcCrap(this CodeMatcher matcher)
     {
         FieldInfo rpcExecStage = typeof(NetworkBehaviour).GetField("__rpc_exec_stage", BindingFlags.Instance | BindingFlags.NonPublic)!;
