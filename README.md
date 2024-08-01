@@ -11,6 +11,8 @@ OBSSync will automatically write down a timestampped log file with event that ha
 some manual events by using either the manual event key (default PageUp) or by sending a chat message in the format
 `!mark <message>`
 
+If you have any questions, suggestions, or bug reports, email me at [ngill@nortel.cloud](mailto:ngill@nortel.cloud).
+
 ### OBS Setup
 1. In OBS: `Tools > WebSocket Server Settings`
 2. Make sure `Enable WebSocket server` is checked
