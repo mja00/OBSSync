@@ -19,6 +19,9 @@ public partial class ObsSyncPlugin : BaseUnityPlugin
     internal static Harmony? Harmony { get; set; }
 
     private readonly ObsWebsocket _obs = new();
+    
+    // Save a timestamp of the last time we saved a replay buffer
+    private DateTime _lastReplayBufferSaved = DateTime.MinValue;
 
     private SelectableLevel? _lastPlayedLevel;
 
@@ -195,6 +198,42 @@ public partial class ObsSyncPlugin : BaseUnityPlugin
         }
     }
 
+    public async void StartReplayBuffer()
+    {
+        await _obs.MakeRequestAsync(new StartReplayBuffer());
+    }
+    
+    public async void StopReplayBuffer()
+    {
+        await _obs.MakeRequestAsync(new StopReplayBuffer());
+    }
+
+    public async Task SaveReplayBuffer()
+    {
+        // If we haven't saved in the last 5 seconds, then save
+        if (_lastReplayBufferSaved + TimeSpan.FromSeconds(5) < DateTime.Now)
+        {
+            Logger.LogDebug("Saving replay buffer...");
+            // Wait like 5 seconds before saving, this'll get any reactions after the event in the recording
+            await Task.Delay(_configReplayBufferDelay.Value * 1000);
+            var saveResponse = await _obs.MakeRequestAsync(new SaveReplayBuffer());
+            
+            // If the save wasn't successful it's most likely because our buffer hasn't been started
+            if (!saveResponse.Status.Success)
+            {
+                await _obs.MakeRequestAsync(new StartReplayBuffer());
+                Logger.LogWarning("Replay buffer not started, starting now");
+                await SaveReplayBuffer();
+                // Update our last saved timestamp
+                _lastReplayBufferSaved = DateTime.Now;
+            }
+        }
+        else
+        {
+            Logger.LogWarning("Replay buffer saved too recently, skipping");
+        }
+    }
+
     #region Callbacks
 
     internal void JoinedGame()
@@ -205,6 +244,11 @@ public partial class ObsSyncPlugin : BaseUnityPlugin
         {
             StartRecording();
         }
+        
+        if (_configAutoReplay.Value)
+        {
+            StartReplayBuffer();
+        }
     }
 
     internal void LeftGame()
@@ -213,6 +257,19 @@ public partial class ObsSyncPlugin : BaseUnityPlugin
         {
             string suffix = LastPlanetName ?? "end";
             StopRecording(suffix);
+        }
+        
+        if (_configAutoReplay.Value)
+        {
+            StopReplayBuffer();
+        }
+    }
+
+    internal async void EventOccurred()
+    {
+        if (_configAutoReplay.Value)
+        {
+            await SaveReplayBuffer();
         }
     }
 
@@ -264,15 +321,19 @@ public partial class ObsSyncPlugin : BaseUnityPlugin
     private ConfigEntry<bool> _configAutoStartStop = null!;
     private ConfigEntry<bool> _configAutoSplit = null!;
     private ConfigEntry<Key> _configManualEventKey = null!;
+    private ConfigEntry<bool> _configAutoReplay = null!;
+    private ConfigEntry<int> _configReplayBufferDelay = null!;
 
     private void BuildConfig()
     {
         _configObsWebsocketAddress = Config.Bind("Connection", "WebsocketAddress", "[::1]:4455", "IP address / port of the computer running OBS");
         _configObsWebsocketPassword = Config.Bind("Connection", "WebsocketPassword", "", "Password to connect to OBS's websocket");
 
-        _configAutoStartStop = Config.Bind("Recording", "AutoStartStop", true, "Automatically start recording when you start or join a game and automatically stop recording when you leave a game.");
-        _configAutoSplit = Config.Bind("Recording", "AutoSplit", true, "Automatically stop and start a new recording between moons");
+        _configAutoStartStop = Config.Bind("Recording", "AutoStartStop", false, "Automatically start recording when you start or join a game and automatically stop recording when you leave a game.");
+        _configAutoSplit = Config.Bind("Recording", "AutoSplit", false, "Automatically stop and start a new recording between moons");
         _configManualEventKey = Config.Bind("Recording", "ManualEventKey", Key.PageUp, "The key that will add a manual event into the timestamp log");
+        _configAutoReplay = Config.Bind("Recording", "AutoReplay", true, "Automatically start and stop the replay buffer when you start or leave a game");
+        _configReplayBufferDelay = Config.Bind("Recording", "ReplayBufferDelay", 5, "The delay in seconds between when an event occurs and when the replay buffer is saved");
     }
 
     #endregion

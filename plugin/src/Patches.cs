@@ -6,11 +6,16 @@ using Discord;
 using GameNetcodeStuff;
 using HarmonyLib;
 using Unity.Netcode;
+using UnityEngine;
 
 namespace OBSSync;
 
 internal static class Patches
 {
+    
+    // Store last fear event
+    private static DateTime _lastFearEvent = DateTime.MinValue;
+    
     [HarmonyPatch(typeof(StartOfRound), nameof(StartOfRound.ResetPlayersLoadedValueClientRpc))]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> OnNewRoundStarted(IEnumerable<CodeInstruction> instructions)
@@ -37,6 +42,7 @@ internal static class Patches
     [HarmonyPrefix]
     public static void OnGameJoined()
     {
+        HUDManager.Instance.DisplayTip("Replay Recorded", "Game started");
         ObsSyncPlugin.Instance.JoinedGame();
     }
 
@@ -53,8 +59,40 @@ internal static class Patches
     {
         void ActualFunction(int playerId, int causeOfDeath)
         {
-            string playerName = StartOfRound.Instance.allPlayerScripts[playerId].playerUsername;
+            PlayerControllerB killedPlayer = StartOfRound.Instance.allPlayerScripts[playerId];
+            Vector3 killedPlayerPosition = killedPlayer.positionOfDeath;
+            string playerName = killedPlayer.playerUsername;
             ObsSyncPlugin.Instance.WriteTimestamppedEvent($"Player {playerName} died ({(CauseOfDeath)causeOfDeath})");
+            // If the player is us, then we can just trigger the event
+            PlayerControllerB localPlayer = StartOfRound.Instance.localPlayerController;
+            if (killedPlayer == localPlayer)
+            {
+                ObsSyncPlugin.Instance.EventOccurred();
+                return;
+            }
+            // Are we spectating/dead? If so, we can trigger the event for any death, it'll be funny
+            if (localPlayer.isPlayerDead && !StartOfRound.Instance.shipIsLeaving)
+            {
+                // Check who we're spectating
+                PlayerControllerB spectatedPlayer = localPlayer.spectatedPlayerScript;
+                Vector3 spectatedPlayerPosition = spectatedPlayer.gameObject.transform.position;
+                float spectateDistance = Vector3.Distance(killedPlayerPosition, spectatedPlayerPosition);
+                if (spectateDistance <= 10f)
+                {
+                    ObsSyncPlugin.Instance.EventOccurred();
+                    HUDManager.Instance.DisplayTip("Replay Recorded", $"{playerName} died while spectating", false, false);
+                }
+            }
+            // Otherwise get our coords, and then killed player coords
+            Vector3 localPlayerPosition = localPlayer.gameObject.transform.position;
+            // Calc distance
+            float distance = Vector3.Distance(killedPlayerPosition, localPlayerPosition);
+            // If we're within 10 meters of the killed player, then we can trigger the event
+            if (distance <= 10f)
+            {
+                HUDManager.Instance.DisplayTip("Replay Recorded", $"{playerName} died", false, false);
+                ObsSyncPlugin.Instance.EventOccurred();
+            }
         }
 
         return new CodeMatcher(instructions)
@@ -74,6 +112,7 @@ internal static class Patches
         if (__instance.gameObject.name.Contains("Doublewinged")) return;
 
         ObsSyncPlugin.Instance.WriteTimestamppedEvent($"Enemy {__instance.gameObject.name} died");
+        // ObsSyncPlugin.Instance.EventOccurred();
     }
 
     [HarmonyPatch(typeof(FlowermanAI), nameof(FlowermanAI.EnterAngerModeClientRpc))]
@@ -83,7 +122,15 @@ internal static class Patches
         void ActualFunction(FlowermanAI self)
         {
             if (self.lookAtPlayer != null)
+            {
                 ObsSyncPlugin.Instance.WriteTimestamppedEvent($"Bracken angered towards {self.lookAtPlayer.playerUsername}");
+                PlayerControllerB localPlayer = StartOfRound.Instance.localPlayerController;
+                if (self.lookAtPlayer == localPlayer)
+                {
+                    HUDManager.Instance.DisplayTip("Replay Recorded", "Bracken angered towards you");
+                    ObsSyncPlugin.Instance.EventOccurred();
+                }
+            }
         }
 
         return new CodeMatcher(instructions)
@@ -202,6 +249,12 @@ internal static class Patches
                     ObsSyncPlugin.Instance.WriteTimestamppedEvent("Low fear event");
                     break;
             }
+            // Hasn't been a minute since the last fear event? Then trigger it
+            if (_lastFearEvent + TimeSpan.FromMinutes(1) < DateTime.Now)
+            {
+                ObsSyncPlugin.Instance.EventOccurred();
+                _lastFearEvent = DateTime.Now;
+            }   
         }
 
         return new CodeMatcher(instructions)

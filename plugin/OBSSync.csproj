@@ -4,7 +4,7 @@
     <PropertyGroup>
         <AssemblyName>Nicole.OBSSync</AssemblyName>
         <Version>1.0.0</Version>
-        <Authors>Nicole</Authors>
+        <Authors>Nicole, mja00</Authors>
         
         <AssemblyTitle>OBS Sync</AssemblyTitle>
         <Description>Automatically control your OBS and create timestamp logs of your games for easier video editing.</Description>
@@ -17,7 +17,7 @@
         <TargetFramework>netstandard2.1</TargetFramework>
         <RootNamespace>OBSSync</RootNamespace>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <LangVersion>latest</LangVersion>
+        <LangVersion>preview</LangVersion>
 
         <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     </PropertyGroup>
@@ -63,7 +63,7 @@
     </ItemGroup>
 
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-        <Copy SourceFiles="$(TargetDir)$(AssemblyName).dll" DestinationFolder="C:\Users\Nicole\AppData\Roaming\r2modmanPlus-local\LethalCompany\profiles\Mod Dev\BepInEx\plugins\_OBSSync" />
+        <Copy SourceFiles="$(TargetDir)$(AssemblyName).dll" DestinationFolder="C:\Users\teamn\AppData\Roaming\Thunderstore Mod Manager\DataFolder\LethalCompany\profiles\Modding\BepInEx\plugins\_OBSSync" />
     </Target>
     
     
