@@ -1,6 +1,6 @@
 # OBS Sync
 Simple plugin to connect to OBS's WebSocket server and automatically split recordings and write the timestamps of
-in-game events into a text file beside the recording.
+in-game events into a text file beside the recording. A fork of https://git.nortel.cloud/lc-modding/OBSSync to add more features.
 
 ## How to use
 
@@ -36,6 +36,10 @@ If replay buffer support is enabled it'll automatically save a replay for variou
   automatically create individual recording files per moon.
 
 * **Recording ManualEventKey**: The key that when pressed will add a manually triggered event into the timestamp log.
+
+* **Recording AutoReplay**: When enabled, the mod will save replays of the game to the recording folder.
+
+* **Recording ReplayBufferDelay**: How long to wait after an event to save a replay.
 
 **NB:** When using the auto split feature there will be a short delay of about half a second between the end of one
 recording and the start of the next. The split occurs after pulling the ship's lever to descend onto a moon where I
