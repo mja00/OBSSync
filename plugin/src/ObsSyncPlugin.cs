@@ -323,6 +323,7 @@ public partial class ObsSyncPlugin : BaseUnityPlugin
     private ConfigEntry<Key> _configManualEventKey = null!;
     private ConfigEntry<bool> _configAutoReplay = null!;
     private ConfigEntry<int> _configReplayBufferDelay = null!;
+    public ConfigEntry<bool> ConfigRecordFearEvents = null!;
 
     private void BuildConfig()
     {
@@ -334,6 +335,7 @@ public partial class ObsSyncPlugin : BaseUnityPlugin
         _configManualEventKey = Config.Bind("Recording", "ManualEventKey", Key.PageUp, "The key that will add a manual event into the timestamp log");
         _configAutoReplay = Config.Bind("Recording", "AutoReplay", true, "Automatically start and stop the replay buffer when you start or leave a game");
         _configReplayBufferDelay = Config.Bind("Recording", "ReplayBufferDelay", 5, "The delay in seconds between when an event occurs and when the replay buffer is saved");
+        ConfigRecordFearEvents = Config.Bind("Recording", "RecordFearEvents", false, "Automatically record fear events");
     }
 
     #endregion

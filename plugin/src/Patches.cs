@@ -249,6 +249,7 @@ internal static class Patches
                     ObsSyncPlugin.Instance.WriteTimestamppedEvent("Low fear event");
                     break;
             }
+            if (!ObsSyncPlugin.Instance.ConfigRecordFearEvents.Value) return;
             // Hasn't been a minute since the last fear event? Then trigger it
             if (_lastFearEvent + TimeSpan.FromMinutes(1) < DateTime.Now)
             {
